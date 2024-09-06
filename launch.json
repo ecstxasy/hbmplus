@@ -1,0 +1,21 @@
+{
+    "version": "0.1.0",
+    "configurations": [
+        {
+            "name": "Run Client",
+            "type": "java",
+            "request": "launch",
+            "mainClass": "net.minecraft.client.main.Main",
+            "projectName": "hbmplus",
+            "args": ["--username", "YourUsername"]
+        },
+        {
+            "name": "Run Server",
+            "type": "java",
+            "request": "launch",
+            "mainClass": "net.minecraft.server.MinecraftServer",
+            "projectName": "hbmplus",
+            "args": []
+        }
+    ]
+}

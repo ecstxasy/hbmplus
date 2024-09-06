@@ -1,0 +1,13 @@
+{
+	"pack" : {
+		"pack_format" : 1,
+		"description" : "lang"
+	},
+	"language" : {
+		"en_US" : {
+			"name" : "english",
+			"region" : "US",
+			"bidirectional" : false
+		}
+	}
+}

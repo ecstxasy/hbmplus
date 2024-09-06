@@ -1,0 +1,18 @@
+chem.ENCHANTMENT=Quartz Enchantment
+chem.EXPERIENCE=Experience Refining
+
+item.rod_pu241.name=Plutonium-241 Rod
+item.rod_dual_pu241.name=Plutonium-241 Dual Rod
+item.rod_quad_pu241.name=Plutonium-241 Quad Rod
+
+item.rod_am_mix.name=Reactor Grade Americium Rod
+item.rod_dual_am_mix.name=Reactor Grade Americium Dual Rod
+item.rod_quad_am_mix.name=Reactor Grade Americium Quad Rod
+
+hbmfluid.saltwater=Salt Water
+hbmfluid.sodium_hydroxide=Sodium Hydroxide
+
+tile.machine_mega_cooler.name=Mega Cooler
+
+tile.machine_shredder_large.name=Large Shredder
+container.machine_shredder_large=Large Shredder

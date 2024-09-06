@@ -1,0 +1,14 @@
+[
+    {
+        "modid": "hbmplus",
+        "name": "HBM Plus",
+        "version": "1.1",
+        "mcversion": "1.7.10",
+        "description": "changes stuff i dont like about hbm",
+        "url": "",
+        "credits": "Me, myself and I.",
+        "license": "LGPL-3.0",
+        "authorList": [ "ecstxasy (coding)", "idioticfrosty (textures)" ],
+        "dependencies": [ "hbm" ]
+    }
+]
