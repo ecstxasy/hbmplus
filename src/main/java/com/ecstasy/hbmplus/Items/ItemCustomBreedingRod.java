@@ -1,6 +1,5 @@
 package com.ecstasy.hbmplus.Items;
 
-import com.hbm.hazard.HazardRegistry;
 import com.hbm.hazard.HazardSystem;
 import com.hbm.items.ModItems;
 import com.hbm.main.CraftingManager;
@@ -35,9 +34,9 @@ public class ItemCustomBreedingRod extends Item {
         GameRegistry.registerItem(dualRod, dualRod.getUnlocalizedName());
         GameRegistry.registerItem(quadRod, quadRod.getUnlocalizedName());
 
-        HazardSystem.register(rod, CustomHazard.makeData(HazardRegistry.RADIATION, rad * HazardRegistry.billet) );
-        HazardSystem.register(dualRod, CustomHazard.makeData(HazardRegistry.RADIATION, rad * HazardRegistry.billet * 2) );
-        HazardSystem.register(quadRod, CustomHazard.makeData(HazardRegistry.RADIATION, rad * HazardRegistry.billet * 4) );
+        HazardSystem.register(rod, CustomHazard.makeData(ItemsMod.RADIATION, rad * ItemsMod.billet) );
+        HazardSystem.register(dualRod, CustomHazard.makeData(ItemsMod.RADIATION, rad * ItemsMod.billet * 2) );
+        HazardSystem.register(quadRod, CustomHazard.makeData(ItemsMod.RADIATION, rad * ItemsMod.billet * 4) );
     }
 
 }
