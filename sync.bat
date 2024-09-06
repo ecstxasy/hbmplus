@@ -10,7 +10,7 @@ set /p COMMIT_MSG="commit message: "
 git commit -m "%COMMIT_MSG%"
 
 echo uploading to GitHub...
-git push ecstxasy/hbmplus main
+git push origin main
 
 echo sync completed
 pause
