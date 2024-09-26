@@ -1,5 +1,6 @@
 package com.ecstasy.hbmplus.Items;
 
+import com.hbm.hazard.type.HazardTypeRadiation;
 import com.hbm.items.ModItems;
 
 public class ItemsMod {
@@ -7,7 +8,7 @@ public class ItemsMod {
     public static ItemCustomBreedingRod BreedingPu241;
     public static ItemCustomBreedingRod BreedingAmMix;
 
-    public static final HazardTypeBase RADIATION = new HazardTypeRadiation();
+    public static final HazardTypeRadiation RADIATION = new HazardTypeRadiation();
 
     public static final float billet = 0.5F;
 

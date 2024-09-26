@@ -2,6 +2,7 @@ package com.ecstasy.hbmplus;
 
 import com.ecstasy.hbmplus.Recipes.InitRecipes;
 import com.hbm.main.ServerProxy;
+import com.ecstasy.hbmplus.AE2.InitAE2;
 import com.ecstasy.hbmplus.Blocks.InitBlocks;
 import com.ecstasy.hbmplus.Fluids.CustomFluids;
 import com.ecstasy.hbmplus.Items.InitItems;
@@ -31,7 +32,7 @@ public class Init {
 	public static ServerProxy proxy;
 
     @EventHandler public void preInit(FMLPreInitializationEvent event) {
-
+        InitAE2.Init();
         InitItems.Main();
         InitBlocks.Init();
 

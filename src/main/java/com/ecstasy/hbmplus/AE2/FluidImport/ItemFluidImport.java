@@ -17,7 +17,7 @@ import net.minecraft.world.World;
 public class ItemFluidImport extends Item implements IPartItem {
     public ItemFluidImport() {
         this.setMaxStackSize(64);
-        this.setUnlocalizedName("fluid_export");
+        this.setUnlocalizedName("fluid_import");
         AEApi.instance().partHelper().setItemBusRenderer(this);
     }
 
@@ -33,7 +33,7 @@ public class ItemFluidImport extends Item implements IPartItem {
     }
 
     public ItemFluidImport register() {
-        GameRegistry.registerItem(this, "fluid_export", "hbmplus");
+        GameRegistry.registerItem(this, "fluid_import", "hbmplus");
         setCreativeTab(CreativeTabs.tabCombat);
         return this;
     }

@@ -1,25 +1,27 @@
 package com.ecstasy.hbmplus.AE2.FluidImport;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import com.ecstasy.hbmplus.Shared.ModLogger;
-import com.google.common.collect.ImmutableSet;
 import com.hbm.inventory.fluid.FluidType;
 import com.hbm.inventory.fluid.Fluids;
 import com.hbm.inventory.fluid.tank.FluidTank;
 import com.hbm.items.ModItems;
 import com.hbm.items.machine.ItemFluidIdentifier;
+import com.hbm.util.fauxpointtwelve.DirPos;
 
-import api.hbm.fluid.IFluidStandardSender;
+import api.hbm.fluid.IFluidConductor;
+import api.hbm.fluid.IFluidConnector;
+import api.hbm.fluid.IFluidStandardTransceiver;
+import api.hbm.fluid.IPipeNet;
 import appeng.api.config.Actionable;
 import appeng.api.config.FuzzyMode;
-import appeng.api.config.PowerMultiplier;
 import appeng.api.config.RedstoneMode;
 import appeng.api.config.SchedulingMode;
 import appeng.api.config.Settings;
-import appeng.api.config.Upgrades;
 import appeng.api.config.YesNo;
 import appeng.api.networking.IGridNode;
-import appeng.api.networking.crafting.ICraftingLink;
-import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.energy.IEnergyGrid;
 import appeng.api.networking.security.BaseActionSource;
 import appeng.api.networking.security.MachineSource;
@@ -28,14 +30,12 @@ import appeng.api.networking.ticking.TickingRequest;
 import appeng.api.parts.IPartCollisionHelper;
 import appeng.api.parts.IPartRenderHelper;
 import appeng.api.storage.IMEInventory;
+import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.client.texture.CableBusTextures;
-import appeng.core.AELog;
 import appeng.core.settings.TickRates;
 import appeng.core.sync.GuiBridge;
-import appeng.helpers.MultiCraftingTracker;
 import appeng.helpers.Reflected;
-import appeng.me.GridAccessException;
 import appeng.parts.automation.PartSharedItemBus;
 import appeng.util.InventoryAdaptor;
 import appeng.util.Platform;
@@ -46,48 +46,45 @@ import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.Vec3;
-import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraft.world.World;
 
-public class PartFluidImport extends PartSharedItemBus implements ICraftingRequester, IFluidStandardSender {
-    private final MultiCraftingTracker craftingTracker = new MultiCraftingTracker(this, 9);
+public class PartFluidImport extends PartSharedItemBus implements IFluidStandardTransceiver {
     private final BaseActionSource mySrc;
     private long itemToSend = 1;
     private boolean didSomething = false;
     private int nextSlot = 0;
 
-    public FluidTank tank;
+    private FluidTank tank;
     public boolean isLoaded = true;
-    private static final int FLUID_FILTER_SLOT = 4;
-
-    private ItemStack fluidFilterProxyItem;
-	
-    public void setFluidFilter(ItemStack proxyItem) {
-        this.fluidFilterProxyItem = proxyItem;
-    }
-
-    private FluidType getFluidTypeFromProxy(ItemStack proxyItem) {
-        if (proxyItem.isItemEqual(new ItemStack(ModItems.fluid_icon))) {
-            ModLogger.logger.info(Fluids.fromID(proxyItem.getItemDamage()).getLocalizedName());
-            return Fluids.fromID(proxyItem.getItemDamage());
-        }
-        return Fluids.NONE;
-    }
-
-    @SuppressWarnings("unused")
-    private FluidType getFluidTypeFromFilterSlot() {
-        ItemStack filterStack = this.getInventoryByName("config").getStackInSlot(FLUID_FILTER_SLOT);
-        if (filterStack != null && filterStack.getItem() instanceof ItemFluidIdentifier) {
-            // Convert the proxy item to a FluidType
-            return getFluidTypeFromProxy(filterStack);
-        }
-        return Fluids.NONE;
-    }
+    private static final int FLUID_FILTER_SLOT = 0;
 
 	@Override
 	public boolean isLoaded() {
 		return isLoaded;
 	}
+
+    @Override public FluidTank[] getSendingTanks() {
+        return new FluidTank[0];
+    }
+
+    @Override public FluidTank[] getAllTanks() {
+        return new FluidTank[] { tank };
+    }
+
+    @Override public FluidTank[] getReceivingTanks() {
+        return new FluidTank[] { tank };
+    }
+
+    @Override
+	public long transferFluid(FluidType type, int pressure, long fluid) {
+		long toTransfer = Math.min(getDemand(type, pressure), fluid);
+		tank.setFill(tank.getFill() + (int) toTransfer);
+//		this.markChanged();
+		return fluid - toTransfer;
+	}
+
 
 
     @Reflected
@@ -102,29 +99,108 @@ public class PartFluidImport extends PartSharedItemBus implements ICraftingReque
         this.tank = new FluidTank(Fluids.NONE, 24000);
     }
 
-    @Override
-	public FluidTank[] getAllTanks() {
-		return new FluidTank[] {tank};
-	}
-
-	@Override
-	public FluidTank[] getSendingTanks() {
-		return new FluidTank[] {tank};
-	}
-
      @Override
     public void readFromNBT(final NBTTagCompound extra) {
         super.readFromNBT(extra);
-        this.craftingTracker.readFromNBT(extra);
         this.nextSlot = extra.getInteger("nextSlot");
     }
 
     @Override
     public void writeToNBT(final NBTTagCompound extra) {
         super.writeToNBT(extra);
-        this.craftingTracker.writeToNBT(extra);
         extra.setInteger("nextSlot", this.nextSlot);
     }
+
+    private FluidType getFluidTypeFromFilterSlot() {
+        ItemStack filterStack = this.getInventoryByName("config").getStackInSlot(FLUID_FILTER_SLOT);
+
+        if (filterStack != null && filterStack.getItem() instanceof ItemFluidIdentifier) {
+            ItemFluidIdentifier id = (ItemFluidIdentifier) filterStack.getItem();
+            return id.getType(null, 0, 0, 0, filterStack);
+        }
+        return Fluids.NONE;
+    }
+
+    private DirPos[] getAdjacentPositions() {
+        // Get the position in front of the export bus
+        int x = this.getHost().getTile().xCoord + this.getSide().offsetX;
+        int y = this.getHost().getTile().yCoord + this.getSide().offsetY;
+        int z = this.getHost().getTile().zCoord + this.getSide().offsetZ;
+
+        // Create a DirPos array with the adjacent position
+        return new DirPos[] { new DirPos(x, y, z, this.getSide()) };
+    }
+
+    @SuppressWarnings("unused")
+    private int transmitFluid() {
+        // Prepare parameters
+        World world = this.getHost().getTile().getWorldObj();
+        DirPos[] positions = getAdjacentPositions();
+
+        // Transfer fluids
+        int fill = tank.getFill();
+        fill = transmitFluidFairly(
+            world, tank, this, fill, true, false, positions
+        );
+
+        return fill;
+    }
+
+
+    private static int transmitFluidFairly(World world, FluidTank tank, IFluidConnector that, int fill, boolean connect, boolean send, DirPos[] connections) {
+
+        Set<IPipeNet> nets = new HashSet<>();
+        Set<IFluidConnector> consumers = new HashSet<>();
+        FluidType type = tank.getTankType();
+        int pressure = tank.getPressure();
+
+        for (DirPos pos : connections) {
+
+            TileEntity te = world.getTileEntity(pos.getX(), pos.getY(), pos.getZ());
+
+            if (te instanceof IFluidConductor) {
+                IFluidConductor con = (IFluidConductor) te;
+                if (con.getPipeNet(type) != null) {
+                    nets.add(con.getPipeNet(type));
+                    con.getPipeNet(type).unsubscribe(that);
+                    consumers.addAll(con.getPipeNet(type).getSubscribers());
+                }
+
+            } else if (te instanceof IFluidConnector) {
+                consumers.add((IFluidConnector) te);
+            }
+        }
+
+        consumers.remove(that);
+
+        if (fill > 0 && send) {
+            // Send fluids to consumers
+            for (IFluidConnector consumer : consumers) {
+                if (consumer != null && consumer != that) {
+                    long demand = consumer.getDemand(type, pressure);
+                    if (demand > 0) {
+                        long toSend = Math.min(fill, demand);
+                        long remaining = consumer.transferFluid(type, pressure, toSend);
+                        long sent = toSend - remaining;
+                        fill -= sent;
+                        if (fill <= 0) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Resubscribe to buffered nets, if necessary
+        if (connect) {
+            for (IPipeNet net : nets) {
+                net.subscribe(that);
+            }
+        }
+
+        return fill;
+    }
+
 
     @Override
 protected TickRateModulation doBusWork() {
@@ -134,40 +210,96 @@ protected TickRateModulation doBusWork() {
 
     this.itemToSend = this.calculateItemsToSend();
     this.didSomething = false;
+    try {
+        final InventoryAdaptor destination = this.getHandler();
+        final IMEMonitor<IAEItemStack> itemInventory = this.getProxy().getStorage().getItemInventory();
 
-    final InventoryAdaptor destination = this.getHandler();
-    final SchedulingMode schedulingMode = (SchedulingMode) this.getConfigManager().getSetting(Settings.SCHEDULING_MODE);
+        if (destination != null) {
+            // Use the fluid filter to determine what fluid to export
+        
+            FluidType fluidTypeToExport = getFluidTypeFromFilterSlot();
 
-    if (destination != null) {
-        // Use the fluid filter to determine what fluid to export
-        FluidType fluidTypeToExport = getFluidTypeFromProxy(fluidFilterProxyItem);
+            tank.setTankType(fluidTypeToExport);
 
-        ForgeDirection dir = this.getSide();
-        ForgeDirection rot = dir.getRotation(ForgeDirection.DOWN);
-//            IAEItemStack addedStack = AEItemStack.create(destination.addItems(items.getItemStack()));
+            ModLogger.logger.info(tank.getFill()+"fill");
+            ModLogger.logger.info(fluidTypeToExport.getName());
 
-        int x = this.getTile().xCoord + dir.offsetX * 1 + rot.offsetX * 0;
-        int y = this.getTile().yCoord;
-        int z = this.getTile().zCoord + dir.offsetZ * 1 + rot.offsetZ * 0;
+            if (fluidTypeToExport != Fluids.NONE) {
+                // Convert FluidType to FluidStack for HBM's system
 
-        this.trySubscribe(fluidTypeToExport, this.getTile().getWorldObj(), x, y, z, getSide());
+                DirPos[] positions = getAdjacentPositions();
 
-        if (fluidTypeToExport != Fluids.NONE) {
-            // Convert FluidType to FluidStack for HBM's system
-            long fluidAmountToExport = getDemand(fluidTypeToExport, 0); // Adjust pressure as needed
 
-            if (fluidAmountToExport > 0) {
-                long remainingFluid = transferFluid(fluidTypeToExport, 0, fluidAmountToExport);
-                if (remainingFluid < fluidAmountToExport) {
+                for (DirPos pos : positions) {
+                    this.trySubscribe(fluidTypeToExport, this.getTile().getWorldObj(), pos.getX(), pos.getY(), pos.getZ(), pos.getDir());
+                }
+
+                this.subscribeToAllAround(fluidTypeToExport, this.getHost().getTile());
+
+                long fluidAmountToExport = getDemand(fluidTypeToExport, tank.getPressure());
+                ModLogger.logger.info(fluidAmountToExport+"ending my shoit");
+                ModLogger.logger.info(tank.getFill()+"hiiiii");
+
+                if (fluidAmountToExport > 0) {
+                    int remainingFluid = transmitFluidFairly(this.getHost().getTile().getWorldObj(), tank, this, tank.getFill(), true, true, positions);
+                    tank.setFill(remainingFluid);
+                    ModLogger.logger.info(remainingFluid+"Ok.");
+                    ModLogger.logger.info(tank.getFill()+"FUCK");
+//                if (remainingFluid < fluidAmountToExport) {
                     this.didSomething = true;
-                    // Log or handle successful export
+                    int fluidAmount = tank.getFill();
+                    int itemsToCreate = fluidAmount / 1000; // temporary
+                    int remainingFluidd = fluidAmount % 1000;
+
+                    if (itemsToCreate > 0) {
+                        ItemStack fluidItemStack = new ItemStack(ModItems.fluid_icon, itemsToCreate, fluidTypeToExport.getID());
+                        ModLogger.logger.info("Creating " + itemsToCreate + " fluid items");
+
+                        // Try to insert the items into the AE2 network
+                        IAEItemStack itemStackToInsert = AEItemStack.create(fluidItemStack);
+                        IAEItemStack notInserted = itemInventory.injectItems(itemStackToInsert, Actionable.SIMULATE, mySrc);
+
+                        if (notInserted == null || notInserted.getStackSize() == 0) {
+                            // all items can be inserted
+                            itemInventory.injectItems(itemStackToInsert, Actionable.MODULATE, mySrc);
+                            // Remove the fluid from the tank
+                            ModLogger.logger.info("All items inserted successfully");
+                            tank.setFill(remainingFluidd);
+                            this.didSomething = true;
+                        } else {
+                            // mot all items could be inserted, adjust accordingly
+                            int itemsInserted = (int) (itemsToCreate - notInserted.getStackSize());
+                            ModLogger.logger.info("Only " + itemsInserted + " items could be inserted");
+
+                            if (itemsInserted > 0) {
+                                ModLogger.logger.info("Creating partial fluid items: " + itemsInserted);
+                                ItemStack insertedStack = new ItemStack(ModItems.fluid_icon, itemsInserted, fluidTypeToExport.getID());
+                                IAEItemStack insertedAEStack = AEItemStack.create(insertedStack);
+                                itemInventory.injectItems(insertedAEStack, Actionable.MODULATE, mySrc);
+
+                                // remove the corresponding fluid from the tank
+                                tank.setFill(remainingFluidd);
+                                this.didSomething = true;
+                            }
+                        }
+ //              } else {
+ //                   ModLogger.logger.info("No fluid received this tick.");
+ //                   return TickRateModulation.SLOWER; // No fluid received
+//                }
+
                 }
             }
+
+    
+            
         }
 
-        this.updateSchedulingMode(schedulingMode, x);
+
     } else {
         return TickRateModulation.SLEEP;
+    }
+    } catch (Exception e) {
+            e.printStackTrace();
     }
 
     return this.didSomething ? TickRateModulation.FASTER : TickRateModulation.SLOWER;
@@ -273,51 +405,8 @@ protected TickRateModulation doBusWork() {
     }
 
     @Override
-    public ImmutableSet<ICraftingLink> getRequestedJobs() {
-        return this.craftingTracker.getRequestedJobs();
-    }
-
-    @Override
-    public IAEItemStack injectCraftedItems(final ICraftingLink link, final IAEItemStack items, final Actionable mode) {
-        final InventoryAdaptor d = this.getHandler();
-
-        try {
-            if (d != null && this.getProxy().isActive()) {
-                final IEnergyGrid energy = this.getProxy().getEnergy();
-                final double power = items.getStackSize();
-
-                if (energy.extractAEPower(power, mode, PowerMultiplier.CONFIG) > power - 0.01) {
-                    if (mode == Actionable.MODULATE) {
-                        return AEItemStack.create(d.addItems(items.getItemStack()));
-                    }
-                    return AEItemStack.create(d.simulateAdd(items.getItemStack()));
-                }
-            }
-        } catch (final GridAccessException e) {
-            AELog.debug(e);
-        }
-
-        return items;
-    }
-
-    @Override
-    public void jobStateChange(final ICraftingLink link) {
-        this.craftingTracker.jobStateChange(link);
-    }
-
-    @Override
     protected boolean isSleeping() {
         return this.getHandler() == null || super.isSleeping();
-    }
-
-    @SuppressWarnings("unused")
-    private boolean craftOnly() {
-        return this.getConfigManager().getSetting(Settings.CRAFT_ONLY) == YesNo.YES;
-    }
-
-    @SuppressWarnings("unused")
-    private boolean isCraftingEnabled() {
-        return this.getInstalledUpgrades(Upgrades.CRAFTING) > 0;
     }
 
     @SuppressWarnings("unused")
@@ -348,22 +437,5 @@ protected TickRateModulation doBusWork() {
         }
     }
 
-    @SuppressWarnings("unused")
-    private int getStartingSlot(final SchedulingMode schedulingMode, final int x) {
-        if (schedulingMode == SchedulingMode.RANDOM) {
-            return Platform.getRandom().nextInt(this.availableSlots());
-        }
 
-        if (schedulingMode == SchedulingMode.ROUNDROBIN) {
-            return (this.nextSlot + x) % this.availableSlots();
-        }
-
-        return x;
-    }
-
-    private void updateSchedulingMode(final SchedulingMode schedulingMode, final int x) {
-        if (schedulingMode == SchedulingMode.ROUNDROBIN) {
-            this.nextSlot = (this.nextSlot + x) % this.availableSlots();
-        }
-    }
 }
